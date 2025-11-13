@@ -11,6 +11,13 @@ dotenv.config();
 
 const app = express();
 
+// --- Ensure uploads directory exists (permanent fix) ---
+const uploadDir = path.join(process.cwd(), "uploads");
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+  console.log("Created uploads directory at:", uploadDir);
+}
+
 // CORS (restrict to your Vite origin in dev)
 app.use(
   cors({
@@ -19,8 +26,9 @@ app.use(
 );
 
 // --- Multer: keep the original filename so extension is preserved ---
+// Use the absolute uploadDir we created above
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, "uploads/"),
+  destination: (req, file, cb) => cb(null, uploadDir),
   filename: (req, file, cb) => {
     const original = file.originalname || "audio.webm";
     const safe = original.replace(/[^\w.\-]/g, "_");
@@ -38,7 +46,11 @@ app.get("/health", (_req, res) => res.send("ok"));
 
 app.post("/api/transcribe", upload.single("audio"), async (req, res) => {
   const cleanup = () => {
-    if (req.file) fs.unlink(req.file.path, () => {});
+    if (req.file) {
+      fs.unlink(req.file.path, (err) => {
+        if (err) console.error("Failed to delete temp file:", err);
+      });
+    }
   };
 
   try {
